@@ -61,6 +61,11 @@ export interface Config {
   heartbeatSchedulerEnabled: boolean;
   heartbeatSchedulerIntervalMs: number;
   companyDeletionEnabled: boolean;
+  stripeSecretKey: string | undefined;
+  stripeWebhookSecret: string | undefined;
+  stripeTeamPriceId: string | undefined;
+  stripeBusinessPriceId: string | undefined;
+  stripeHeartbeatPriceId: string | undefined;
 }
 
 export function loadConfig(): Config {
@@ -243,5 +248,10 @@ export function loadConfig(): Config {
     heartbeatSchedulerEnabled: process.env.HEARTBEAT_SCHEDULER_ENABLED !== "false",
     heartbeatSchedulerIntervalMs: Math.max(10000, Number(process.env.HEARTBEAT_SCHEDULER_INTERVAL_MS) || 30000),
     companyDeletionEnabled,
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? undefined,
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? undefined,
+    stripeTeamPriceId: process.env.STRIPE_TEAM_PRICE_ID ?? undefined,
+    stripeBusinessPriceId: process.env.STRIPE_BUSINESS_PRICE_ID ?? undefined,
+    stripeHeartbeatPriceId: process.env.STRIPE_HEARTBEAT_PRICE_ID ?? undefined,
   };
 }

@@ -24,6 +24,8 @@ import { sidebarBadgeRoutes } from "./routes/sidebar-badges.js";
 import { llmRoutes } from "./routes/llms.js";
 import { assetRoutes } from "./routes/assets.js";
 import { accessRoutes } from "./routes/access.js";
+import { billingRoutes, billingWebhookRoute } from "./routes/billing.js";
+import type { BillingConfig } from "./services/billing.js";
 import type { BetterAuthSessionResult } from "./auth/better-auth.js";
 
 type UiMode = "none" | "static" | "vite-dev";
@@ -39,11 +41,17 @@ export async function createApp(
     bindHost: string;
     authReady: boolean;
     companyDeletionEnabled: boolean;
+    billingConfig?: BillingConfig;
     betterAuthHandler?: express.RequestHandler;
     resolveSession?: (req: ExpressRequest) => Promise<BetterAuthSessionResult | null>;
   },
 ) {
   const app = express();
+
+  // Stripe webhook needs raw body — mount before express.json()
+  if (opts.billingConfig) {
+    app.use("/api", billingWebhookRoute(db, opts.billingConfig));
+  }
 
   app.use(express.json());
   app.use(httpLogger);
@@ -109,6 +117,9 @@ export async function createApp(
   api.use(approvalRoutes(db));
   api.use(secretRoutes(db));
   api.use(costRoutes(db));
+  if (opts.billingConfig) {
+    api.use(billingRoutes(db, opts.billingConfig));
+  }
   api.use(activityRoutes(db));
   api.use(dashboardRoutes(db));
   api.use(sidebarBadgeRoutes(db));

@@ -460,6 +460,16 @@ const app = await createApp(db as any, {
   bindHost: config.host,
   authReady,
   companyDeletionEnabled: config.companyDeletionEnabled,
+  billingConfig:
+    config.stripeSecretKey && config.stripeWebhookSecret
+      ? {
+          stripeSecretKey: config.stripeSecretKey,
+          stripeWebhookSecret: config.stripeWebhookSecret,
+          teamPriceId: config.stripeTeamPriceId,
+          businessPriceId: config.stripeBusinessPriceId,
+          heartbeatPriceId: config.stripeHeartbeatPriceId,
+        }
+      : undefined,
   betterAuthHandler,
   resolveSession,
 });
