@@ -100,7 +100,13 @@ export function billingWebhookRoute(db: Db, config: BillingConfig) {
       return;
     }
 
-    await billing.handleWebhookEvent(event);
+    try {
+      await billing.handleWebhookEvent(event);
+    } catch (err) {
+      console.error(`Stripe webhook processing failed for event ${event.id} (${event.type}):`, err);
+      res.status(500).json({ error: "Webhook event processing failed" });
+      return;
+    }
     res.json({ received: true });
   });
 

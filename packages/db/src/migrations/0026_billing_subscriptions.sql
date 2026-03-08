@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS "subscriptions" (
   "status" text NOT NULL DEFAULT 'inactive',
   "current_period_start" timestamp with time zone,
   "current_period_end" timestamp with time zone,
-  "cancel_at_period_end" text NOT NULL DEFAULT 'false',
+  "cancel_at_period_end" boolean NOT NULL DEFAULT false,
   "trial_ends_at" timestamp with time zone,
   "metadata" jsonb,
   "created_at" timestamp with time zone NOT NULL DEFAULT now(),
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS "usage_records" (
   "overage_heartbeats" integer NOT NULL DEFAULT 0,
   "overage_cents" integer NOT NULL DEFAULT 0,
   "stripe_usage_record_id" text,
-  "reported_to_stripe" text NOT NULL DEFAULT 'false',
+  "reported_to_stripe" boolean NOT NULL DEFAULT false,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
 

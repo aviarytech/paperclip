@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp, jsonb, index, boolean } from "drizzle-orm/pg-core";
 import { companies } from "./companies.js";
 
 export const subscriptions = pgTable(
@@ -16,7 +16,7 @@ export const subscriptions = pgTable(
     status: text("status").notNull().default("inactive"),
     currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
-    cancelAtPeriodEnd: text("cancel_at_period_end").notNull().default("false"),
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
     trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
     metadata: jsonb("metadata"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

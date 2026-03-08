@@ -21,6 +21,17 @@ export interface BillingConfig {
 export function billingService(db: Db, config: BillingConfig) {
   const stripe = new Stripe(config.stripeSecretKey);
 
+  // Validate price IDs at startup
+  const missingPriceIds: string[] = [];
+  if (!config.teamPriceId) missingPriceIds.push("STRIPE_TEAM_PRICE_ID");
+  if (!config.businessPriceId) missingPriceIds.push("STRIPE_BUSINESS_PRICE_ID");
+  if (!config.heartbeatPriceId) missingPriceIds.push("STRIPE_HEARTBEAT_PRICE_ID");
+  if (missingPriceIds.length > 0) {
+    console.warn(
+      `[billing] Missing Stripe price IDs: ${missingPriceIds.join(", ")}. Checkout will fail for plans without configured price IDs.`,
+    );
+  }
+
   async function getSubscription(companyId: string) {
     const [sub] = await db
       .select()
@@ -186,12 +197,12 @@ export function billingService(db: Db, config: BillingConfig) {
               .update(usageRecords)
               .set({
                 stripeUsageRecordId: usageRecord.id,
-                reportedToStripe: "true",
+                reportedToStripe: true,
               })
               .where(eq(usageRecords.id, record.id));
           }
-        } catch {
-          // Usage reporting failure is non-fatal; will retry next period
+        } catch (err) {
+          console.error(`[billing] Failed to report usage to Stripe for company ${companyId}:`, err);
         }
       }
 
@@ -199,6 +210,14 @@ export function billingService(db: Db, config: BillingConfig) {
     },
 
     handleWebhookEvent: async (event: Stripe.Event) => {
+      // Idempotency: skip already-processed events
+      const [existing] = await db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(sql`${subscriptions.metadata}->>'lastProcessedEventId' = ${event.id}`)
+        .limit(1);
+      if (existing) return;
+
       switch (event.type) {
         case "checkout.session.completed": {
           const session = event.data.object as Stripe.Checkout.Session;
@@ -212,6 +231,7 @@ export function billingService(db: Db, config: BillingConfig) {
               stripeSubscriptionId: session.subscription as string,
               plan,
               status: "active",
+              metadata: sql`jsonb_set(coalesce(${subscriptions.metadata}, '{}'::jsonb), '{lastProcessedEventId}', ${JSON.stringify(event.id)}::jsonb)`,
               updatedAt: new Date(),
             })
             .where(eq(subscriptions.companyId, companyId));
@@ -224,22 +244,21 @@ export function billingService(db: Db, config: BillingConfig) {
           if (!companyId) break;
 
           const status = mapStripeStatus(subscription.status);
-          const update: Record<string, unknown> = {
-            status,
-            stripePriceId: subscription.items.data[0]?.price.id ?? null,
-            currentPeriodStart: new Date(subscription.current_period_start * 1000),
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-            cancelAtPeriodEnd: subscription.cancel_at_period_end ? "true" : "false",
-            updatedAt: new Date(),
-          };
-
-          if (subscription.trial_end) {
-            update.trialEndsAt = new Date(subscription.trial_end * 1000);
-          }
 
           await db
             .update(subscriptions)
-            .set(update)
+            .set({
+              status,
+              stripePriceId: subscription.items.data[0]?.price.id ?? null,
+              currentPeriodStart: new Date(subscription.current_period_start * 1000),
+              currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+              cancelAtPeriodEnd: subscription.cancel_at_period_end,
+              trialEndsAt: subscription.trial_end
+                ? new Date(subscription.trial_end * 1000)
+                : null,
+              metadata: sql`jsonb_set(coalesce(${subscriptions.metadata}, '{}'::jsonb), '{lastProcessedEventId}', ${JSON.stringify(event.id)}::jsonb)`,
+              updatedAt: new Date(),
+            })
             .where(eq(subscriptions.companyId, companyId));
           break;
         }
@@ -254,6 +273,7 @@ export function billingService(db: Db, config: BillingConfig) {
             .set({
               status: "canceled",
               plan: "free",
+              metadata: sql`jsonb_set(coalesce(${subscriptions.metadata}, '{}'::jsonb), '{lastProcessedEventId}', ${JSON.stringify(event.id)}::jsonb)`,
               updatedAt: new Date(),
             })
             .where(eq(subscriptions.companyId, companyId));
@@ -267,7 +287,11 @@ export function billingService(db: Db, config: BillingConfig) {
 
           await db
             .update(subscriptions)
-            .set({ status: "past_due", updatedAt: new Date() })
+            .set({
+              status: "past_due",
+              metadata: sql`jsonb_set(coalesce(${subscriptions.metadata}, '{}'::jsonb), '{lastProcessedEventId}', ${JSON.stringify(event.id)}::jsonb)`,
+              updatedAt: new Date(),
+            })
             .where(eq(subscriptions.stripeSubscriptionId, subId));
           break;
         }

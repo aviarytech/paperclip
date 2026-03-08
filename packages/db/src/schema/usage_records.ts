@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp, index, boolean } from "drizzle-orm/pg-core";
 import { companies } from "./companies.js";
 
 export const usageRecords = pgTable(
@@ -15,7 +15,7 @@ export const usageRecords = pgTable(
     overageHeartbeats: integer("overage_heartbeats").notNull().default(0),
     overageCents: integer("overage_cents").notNull().default(0),
     stripeUsageRecordId: text("stripe_usage_record_id"),
-    reportedToStripe: text("reported_to_stripe").notNull().default("false"),
+    reportedToStripe: boolean("reported_to_stripe").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
